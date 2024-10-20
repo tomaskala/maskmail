@@ -1,0 +1,98 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "maskmail"
+version = "1.0.0"
+authors = [
+  { name = "Tomas Kala", email = "contact@tomaskala.com" },
+]
+description = "CLI access to FastMail's masked email API"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">= 3.11"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+]
+dependencies = [
+  "click >= 8.1.7",
+  "prettytable >= 3.11.0",
+  "pydantic >= 2.9.2",
+  "requests >= 2.32.3",
+]
+
+[project.optional-dependencies]
+lint = [
+  "mypy >= 1.11.2",
+  "ruff >= 0.6.8",
+  "types-requests >= 2.32.0",
+]
+
+[project.scripts]
+maskmail = "maskmail:cli"
+
+[tool.mypy]
+strict = true
+plugins = [
+  "pydantic.mypy",
+]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.ruff.lint]
+select = [
+  "F",  # pyflakes
+  "E",  # pycodestyle errors
+  "W",  # pycodestyle warnings
+  "I",  # isort
+  "N",  # pep8-naming
+  "UP", # pyupgrade
+  "ANN",  # flake8-annotations
+  "ASYNC",  # flake8-async
+  "S",  # flake8-bandit
+  "BLE",  # flake8-blind-except
+  "B",  # flake8-bugbear
+  "A",  # flake8-builtins
+  "C4",  # flake8-comprehensions
+  "DTZ",  # flake8-datetimez
+  "EXE",  # flake8-executable
+  "ISC",  # flake8-implicit-string-concat
+  "ICN",  # flake8-import-conventions
+  "LOG",  # flake8-logging
+  "G",  # flake8-logging-format
+  "INP",  # flake8-no-pep420
+  "PIE",  # flake8-pie
+  "PT",  # flake8-pytest-style
+  "RSE",  # flake8-raise
+  "RET",  # flake8-return
+  "SLF",  # flake8-self
+  "SLOT",  # flake8-slots
+  "SIM",  # flake8-simplify
+  "TID",  # flake8-tidy-imports
+  "TCH",  # flake8-type-checking
+  "INT",  # flake8-gettext
+  "ARG",  # flake8-unused-arguments
+  "PTH",  # flake8-use-pathlib
+  "PD",  # pandas-vet
+  "PGH",  # pygrep-hooks
+  "PL",  # pylint
+  "TRY",  # tryceratops
+  "FLY",  # flynt
+  "NPY",  # numpy-specific rules
+  "PERF",  # perflint
+  "FURB",  # refurb
+  "RUF",  # ruff-specific rules
+]
+ignore = [
+  "ISC001",  # conflicts with the formatter
+  "TRY003",  # Avoid specifying long messages outside the exception class
+]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-wrap-aliases = true
