@@ -26,7 +26,7 @@ dependencies = [
 [project.optional-dependencies]
 lint = [
   "mypy >= 1.11.2",
-  "ruff >= 0.6.8",
+  "ruff >= 0.9.0",
   "types-requests >= 2.32.0",
 ]
 
@@ -89,7 +89,6 @@ select = [
   "RUF",  # ruff-specific rules
 ]
 ignore = [
-  "ISC001",  # conflicts with the formatter
   "TRY003",  # Avoid specifying long messages outside the exception class
 ]
 
