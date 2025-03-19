@@ -1,3 +1,14 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "click>=8.1.8",
+#     "prettytable>=3.15.1",
+#     "pydantic>=2.10.6",
+#     "requests>=2.32.3",
+# ]
+# ///
+
 import re
 import sys
 from datetime import datetime
@@ -19,7 +30,9 @@ CAP_MASKED_EMAIL = "https://www.fastmail.com/dev/maskedemail"
 Id = Annotated[
     str,
     StringConstraints(
-        min_length=1, max_length=255, pattern=re.compile(r"[A-Za-z0-9\-_]+")
+        min_length=1,
+        max_length=255,
+        pattern=re.compile(r"[A-Za-z0-9\-_]+"),
     ),
 ]
 
@@ -132,14 +145,19 @@ def make_headers(api_token: str) -> dict[str, str]:
 
 def get_session(api_token: str, timeout: int) -> Session:
     response = requests.get(
-        SESSION_URL, headers=make_headers(api_token), timeout=timeout
+        SESSION_URL,
+        headers=make_headers(api_token),
+        timeout=timeout,
     )
     response.raise_for_status()
     return Session(**response.json())
 
 
 def send_get_request(
-    url: str, api_token: str, request: GetRequest, timeout: int
+    url: str,
+    api_token: str,
+    request: GetRequest,
+    timeout: int,
 ) -> GetResponse:
     payload = Request[GetRequest](
         using=[CAP_CORE, CAP_MASKED_EMAIL],
@@ -156,7 +174,10 @@ def send_get_request(
 
 
 def send_set_request(
-    url: str, api_token: str, request: SetRequest, timeout: int
+    url: str,
+    api_token: str,
+    request: SetRequest,
+    timeout: int,
 ) -> SetResponse:
     payload = Request[SetRequest](
         using=[CAP_CORE, CAP_MASKED_EMAIL],
@@ -255,7 +276,7 @@ def create(ctx: Context, domain: str, description: str) -> None:
 @cli.command()
 @click.option(
     "--state",
-    type=click.Choice(MaskedEmailState),  # type: ignore[arg-type]
+    type=click.Choice(MaskedEmailState),
     help="Only list masked emails in this state",
 )
 @click.option(
@@ -295,7 +316,8 @@ def show(ctx: Context, state: MaskedEmailState | None, json: bool) -> None:
         sys.exit(1)
 
     table = PrettyTable(
-        align="r", field_names=["Email", "State", "Domain", "Description"]
+        align="r",
+        field_names=["Email", "State", "Domain", "Description"],
     )
 
     for masked_email in response.masked_emails:
@@ -306,7 +328,7 @@ def show(ctx: Context, state: MaskedEmailState | None, json: bool) -> None:
                     masked_email.state,
                     masked_email.for_domain,
                     masked_email.description,
-                ]
+                ],
             )
 
     if json:
