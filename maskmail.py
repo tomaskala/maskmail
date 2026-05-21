@@ -1,11 +1,11 @@
 #!/usr/bin/env -S uv run --script
 # /// script
-# requires-python = ">=3.12"
+# requires-python = "==3.12"
 # dependencies = [
-#     "click>=8.1.8",
-#     "prettytable>=3.15.1",
-#     "pydantic>=2.10.6",
-#     "requests>=2.32.3",
+#     "click==8.1.8",
+#     "prettytable==3.15.1",
+#     "pydantic==2.10.6",
+#     "requests==2.32.3",
 # ]
 # ///
 
