@@ -20,7 +20,7 @@ const (
 	capMaskedEmail = "https://www.fastmail.com/dev/maskedemail"
 
 	service = "maskmail"
-	timeout = 5 * time.Second
+	timeout = 10 * time.Second
 
 	usage = `maskmail <create|show> [OPTIONS]
 

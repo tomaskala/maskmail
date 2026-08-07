@@ -17,7 +17,7 @@ The `maskmail` client supports two basic operations: creating a new masked email
 
 To use the program, you need to create a FastMail API token with at least the masked email capabilities and store it in the system key chain. The program uses the [go-keyring](https://github.com/zalando/go-keyring) package to access it. Store the token by following the instructions at [go-keyring#direct-cli-usage](https://github.com/zalando/go-keyring#direct-cli-usage), with the service name being `maskmail` and username being your login username.
 
-The program sets a timeout of 5 seconds to each HTTP request.
+The program sets a timeout of 10 seconds to each HTTP request.
 
 ### Create a new masked email
 
