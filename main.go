@@ -2,7 +2,8 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"flag"
 	"fmt"
 	"net/http"
@@ -41,7 +42,7 @@ var (
 	state    = showFlag.String("state", "all", "Only show masked emails in this state (all/pending/enabled/disabled/deleted)")
 )
 
-type JMAPInvocation [3]json.RawMessage
+type JMAPInvocation [3]jsontext.Value
 
 type JMAPRequest struct {
 	Using       []string         `json:"using"`
@@ -84,21 +85,21 @@ const (
 )
 
 type MaskedEmail struct {
-	ID            string           `json:"id,omitempty"`
-	Email         string           `json:"email,omitempty"`
-	State         MaskedEmailState `json:"state,omitempty"`
-	ForDomain     string           `json:"forDomain,omitempty"`
-	Description   string           `json:"description,omitempty"`
-	LastMessageAt *time.Time       `json:"lastMessageAt,omitempty"`
-	CreatedAt     *time.Time       `json:"createdAt,omitempty"`
-	CreatedBy     string           `json:"createdBy,omitempty"`
-	URL           *string          `json:"url,omitempty"`
-	EmailPrefix   string           `json:"emailPrefix,omitempty"`
+	ID            string           `json:"id,omitzero"`
+	Email         string           `json:"email,omitzero"`
+	State         MaskedEmailState `json:"state,omitzero"`
+	ForDomain     string           `json:"forDomain,omitzero"`
+	Description   string           `json:"description,omitzero"`
+	LastMessageAt *time.Time       `json:"lastMessageAt,omitzero"`
+	CreatedAt     *time.Time       `json:"createdAt,omitzero"`
+	CreatedBy     string           `json:"createdBy,omitzero"`
+	URL           *string          `json:"url,omitzero"`
+	EmailPrefix   string           `json:"emailPrefix,omitzero"`
 }
 
 type SetRequest struct {
 	AccountID ID                 `json:"accountId"`
-	IfInState *string            `json:"ifInState"`
+	IfInState *string            `json:"ifInState,omitzero"`
 	Create    map[ID]MaskedEmail `json:"create,omitempty"`
 	Update    map[ID][]string    `json:"update,omitempty"`
 	Destroy   []ID               `json:"destroy,omitempty"`
@@ -106,7 +107,7 @@ type SetRequest struct {
 
 type SetError struct {
 	Type        string  `json:"type"`
-	Description *string `json:"description,omitempty"`
+	Description *string `json:"description"`
 }
 
 type SetResponse struct {
@@ -123,8 +124,8 @@ type SetResponse struct {
 
 type GetRequest struct {
 	AccountID  ID       `json:"accountId"`
-	IDs        []ID     `json:"ids"`
-	Properties []string `json:"properties"`
+	IDs        []ID     `json:"ids,omitempty"`
+	Properties []string `json:"properties,omitempty"`
 }
 
 type GetResponse struct {
@@ -162,7 +163,7 @@ func OpenSession(apiToken string) (*Client, error) {
 		return nil, fmt.Errorf("returned status %d", resp.StatusCode)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&c.session); err != nil {
+	if err := json.UnmarshalRead(resp.Body, &c.session); err != nil {
 		return nil, fmt.Errorf("error unmarshalling HTTP response: %w", err)
 	}
 	return c, nil
@@ -194,7 +195,7 @@ func newJMAPInvocation(methodName string, args any, callID string) (JMAPInvocati
 	return JMAPInvocation{methodNameJSON, argsJSON, callIDJSON}, nil
 }
 
-func (c *Client) sendRequest(method string, args any) (json.RawMessage, error) {
+func (c *Client) sendRequest(method string, args any) (jsontext.Value, error) {
 	call, err := newJMAPInvocation(method, args, "a")
 	if err != nil {
 		return nil, fmt.Errorf("error building JMAP invocation: %w", err)
@@ -226,7 +227,7 @@ func (c *Client) sendRequest(method string, args any) (json.RawMessage, error) {
 	}
 
 	var jmapResponse JMAPResponse
-	if err := json.NewDecoder(resp.Body).Decode(&jmapResponse); err != nil {
+	if err := json.UnmarshalRead(resp.Body, &jmapResponse); err != nil {
 		return nil, fmt.Errorf("error unmarshalling HTTP response: %w", err)
 	}
 	if len(jmapResponse.MethodResponses) == 0 {

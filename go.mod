@@ -1,6 +1,6 @@
 module tomaskala.com/maskmail
 
-go 1.26.6
+go 1.27.0
 
 require github.com/zalando/go-keyring v0.2.8
 
