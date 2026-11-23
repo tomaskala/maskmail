@@ -6,10 +6,16 @@ FastMail is capable of generating [masked emails](https://www.fastmail.com/featu
 
 ## Usage
 
+Install using
+
+```
+$ go install tomaskala.com/maskmail/cmd/maskmail@latest
+```
+
 Build and run the binary
 
 ```
-$ go build
+$ go build ./cmd/maskmail
 $ ./maskmail ACTION [OPTIONS]
 ```
 

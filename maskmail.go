@@ -1,57 +1,31 @@
-package main
+package maskmail
 
 import (
 	"bytes"
+	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
-	"flag"
 	"fmt"
 	"net/http"
-	"os"
-	"os/user"
-	"text/tabwriter"
 	"time"
-
-	"github.com/zalando/go-keyring"
 )
 
 const (
 	sessionURL     = "https://api.fastmail.com/jmap/session"
 	capCore        = "urn:ietf:params:jmap:core"
 	capMaskedEmail = "https://www.fastmail.com/dev/maskedemail"
-
-	service = "maskmail"
-	timeout = 10 * time.Second
-
-	usage = `maskmail <create|show> [OPTIONS]
-
-OPTIONS for create
-      -domain       Domain this masked email is for (required)
-      -description  Description of the masked email's usage (required)
-
-OPTIONS for show
-      -state  Only show masked emails in this state (all/pending/enabled/disabled/deleted)`
 )
 
-var (
-	createFlag  = flag.NewFlagSet("create", flag.ContinueOnError)
-	domain      = createFlag.String("domain", "", "Domain this masked email is for")
-	description = createFlag.String("description", "", "Description of the masked email's usage")
+type jmapInvocation [3]jsontext.Value
 
-	showFlag = flag.NewFlagSet("show", flag.ContinueOnError)
-	state    = showFlag.String("state", "all", "Only show masked emails in this state (all/pending/enabled/disabled/deleted)")
-)
-
-type JMAPInvocation [3]jsontext.Value
-
-type JMAPRequest struct {
+type jmapRequest struct {
 	Using       []string         `json:"using"`
-	MethodCalls []JMAPInvocation `json:"methodCalls"`
+	MethodCalls []jmapInvocation `json:"methodCalls"`
 }
 
-type JMAPResponse struct {
+type jmapResponse struct {
 	SessionState    string           `json:"sessionState"`
-	MethodResponses []JMAPInvocation `json:"methodResponses"`
+	MethodResponses []jmapInvocation `json:"methodResponses"`
 }
 
 type ID string
@@ -141,13 +115,13 @@ type Client struct {
 	httpClient *http.Client
 }
 
-func OpenSession(apiToken string) (*Client, error) {
+func OpenSession(ctx context.Context, apiToken string, httpClient *http.Client) (*Client, error) {
 	c := &Client{
 		apiToken:   apiToken,
-		httpClient: &http.Client{Timeout: timeout},
+		httpClient: httpClient,
 	}
 
-	req, err := http.NewRequest(http.MethodGet, sessionURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sessionURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating HTTP request: %w", err)
 	}
@@ -176,41 +150,41 @@ func (c *Client) makeHeaders() http.Header {
 	return h
 }
 
-func newJMAPInvocation(methodName string, args any, callID string) (JMAPInvocation, error) {
+func newJMAPInvocation(methodName string, args any, callID string) (jmapInvocation, error) {
 	methodNameJSON, err := json.Marshal(methodName)
 	if err != nil {
-		return JMAPInvocation{}, fmt.Errorf("error marshalling method name: %w", err)
+		return jmapInvocation{}, fmt.Errorf("error marshalling method name: %w", err)
 	}
 
 	argsJSON, err := json.Marshal(args)
 	if err != nil {
-		return JMAPInvocation{}, fmt.Errorf("error marshalling args: %w", err)
+		return jmapInvocation{}, fmt.Errorf("error marshalling args: %w", err)
 	}
 
 	callIDJSON, err := json.Marshal(callID)
 	if err != nil {
-		return JMAPInvocation{}, fmt.Errorf("error marshalling call ID: %w", err)
+		return jmapInvocation{}, fmt.Errorf("error marshalling call ID: %w", err)
 	}
 
-	return JMAPInvocation{methodNameJSON, argsJSON, callIDJSON}, nil
+	return jmapInvocation{methodNameJSON, argsJSON, callIDJSON}, nil
 }
 
-func (c *Client) sendRequest(method string, args any) (jsontext.Value, error) {
+func (c *Client) sendRequest(ctx context.Context, method string, args any) (jsontext.Value, error) {
 	call, err := newJMAPInvocation(method, args, "a")
 	if err != nil {
 		return nil, fmt.Errorf("error building JMAP invocation: %w", err)
 	}
 
-	jmapRequest := JMAPRequest{
+	jmapRequest := jmapRequest{
 		Using:       []string{capCore, capMaskedEmail},
-		MethodCalls: []JMAPInvocation{call},
+		MethodCalls: []jmapInvocation{call},
 	}
 	body, err := json.Marshal(jmapRequest)
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling JMAP request: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, c.session.APIURL, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.session.APIURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("error creating HTTP request: %w", err)
 	}
@@ -226,7 +200,7 @@ func (c *Client) sendRequest(method string, args any) (jsontext.Value, error) {
 		return nil, fmt.Errorf("returned status %d", resp.StatusCode)
 	}
 
-	var jmapResponse JMAPResponse
+	var jmapResponse jmapResponse
 	if err := json.UnmarshalRead(resp.Body, &jmapResponse); err != nil {
 		return nil, fmt.Errorf("error unmarshalling HTTP response: %w", err)
 	}
@@ -237,8 +211,13 @@ func (c *Client) sendRequest(method string, args any) (jsontext.Value, error) {
 	return jmapResponse.MethodResponses[0][1], nil
 }
 
-func (c *Client) SendSetRequest(request SetRequest) (*SetResponse, error) {
-	res, err := c.sendRequest("MaskedEmail/set", request)
+func (c *Client) AccountID() (ID, bool) {
+	accountID, ok := c.session.PrimaryAccounts[capMaskedEmail]
+	return accountID, ok
+}
+
+func (c *Client) SendSetRequest(ctx context.Context, request SetRequest) (*SetResponse, error) {
+	res, err := c.sendRequest(ctx, "MaskedEmail/set", request)
 	if err != nil {
 		return nil, fmt.Errorf("error sending set request: %w", err)
 	}
@@ -250,8 +229,8 @@ func (c *Client) SendSetRequest(request SetRequest) (*SetResponse, error) {
 	return &response, nil
 }
 
-func (c *Client) SendGetRequest(request GetRequest) (*GetResponse, error) {
-	res, err := c.sendRequest("MaskedEmail/get", request)
+func (c *Client) SendGetRequest(ctx context.Context, request GetRequest) (*GetResponse, error) {
+	res, err := c.sendRequest(ctx, "MaskedEmail/get", request)
 	if err != nil {
 		return nil, fmt.Errorf("error sending get request: %w", err)
 	}
@@ -261,148 +240,4 @@ func (c *Client) SendGetRequest(request GetRequest) (*GetResponse, error) {
 		return nil, fmt.Errorf("error unmarshalling get response: %w", err)
 	}
 	return &response, nil
-}
-
-func main() {
-	if len(os.Args) < 2 {
-		printUsageAndExit()
-	}
-	switch os.Args[1] {
-	case "create":
-		if err := createFlag.Parse(os.Args[2:]); err != nil {
-			printUsageAndExit()
-		}
-		createAction()
-	case "show":
-		if err := showFlag.Parse(os.Args[2:]); err != nil {
-			printUsageAndExit()
-		}
-		showAction()
-	default:
-		printUsageAndExit()
-	}
-}
-
-func printUsageAndExit() {
-	fmt.Fprintln(os.Stderr, usage)
-	os.Exit(1)
-}
-
-func getAPIToken() (string, error) {
-	currentUser, err := user.Current()
-	if err != nil {
-		return "", fmt.Errorf("error retrieving the current user: %w", err)
-	}
-
-	apiToken, err := keyring.Get(service, currentUser.Username)
-	if err != nil {
-		return "", fmt.Errorf("error obtaining API token from the keyring: %w", err)
-	}
-	return apiToken, nil
-}
-
-func setup() (*Client, ID, error) {
-	apiToken, err := getAPIToken()
-	if err != nil {
-		return nil, "", fmt.Errorf("error getting API token: %w", err)
-	}
-	client, err := OpenSession(apiToken)
-	if err != nil {
-		return nil, "", fmt.Errorf("error opening session: %w", err)
-	}
-
-	accountID, ok := client.session.PrimaryAccounts[capMaskedEmail]
-	if !ok {
-		return nil, "", fmt.Errorf("no primary account with capability %s found", capMaskedEmail)
-	}
-
-	return client, accountID, nil
-}
-
-func createAction() {
-	if *domain == "" {
-		fmt.Fprintln(os.Stderr, "the domain cannot be empty")
-		os.Exit(1)
-	}
-	if *description == "" {
-		fmt.Fprintln(os.Stderr, "the description cannot be empty")
-		os.Exit(1)
-	}
-
-	email, err := createEmail()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
-	fmt.Println(email.Email)
-}
-
-func createEmail() (*MaskedEmail, error) {
-	client, accountID, err := setup()
-	if err != nil {
-		return nil, fmt.Errorf("error setting up client: %w", err)
-	}
-
-	request := SetRequest{
-		AccountID: accountID,
-		Create: map[ID]MaskedEmail{
-			"new_masked_email": {
-				State:       StatePending,
-				ForDomain:   *domain,
-				Description: *description,
-			},
-		},
-	}
-
-	response, err := client.SendSetRequest(request)
-	if err != nil {
-		return nil, fmt.Errorf("error sending set request: %w", err)
-	}
-
-	created, ok := response.Created["new_masked_email"]
-	if !ok {
-		return nil, fmt.Errorf("no email address created")
-	}
-	return &created, nil
-}
-
-func showAction() {
-	if !(*state == "all" ||
-		MaskedEmailState(*state) == StatePending ||
-		MaskedEmailState(*state) == StateEnabled ||
-		MaskedEmailState(*state) == StateDisabled ||
-		MaskedEmailState(*state) == StateDeleted) {
-		fmt.Fprintf(os.Stderr, "invalid state: %s\n", *state)
-		os.Exit(1)
-	}
-
-	emails, err := showEmails()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
-
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "Email\tState\tDomain\tDescription")
-	for _, email := range emails {
-		if *state == "all" || MaskedEmailState(*state) == email.State {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", email.Email, email.State, email.ForDomain, email.Description)
-		}
-	}
-	w.Flush()
-}
-
-func showEmails() ([]MaskedEmail, error) {
-	client, accountID, err := setup()
-	if err != nil {
-		return nil, fmt.Errorf("error setting up client: %w", err)
-	}
-
-	request := GetRequest{AccountID: accountID}
-
-	response, err := client.SendGetRequest(request)
-	if err != nil {
-		return nil, fmt.Errorf("error sending get request: %w", err)
-	}
-	return response.MaskedEmails, nil
 }
